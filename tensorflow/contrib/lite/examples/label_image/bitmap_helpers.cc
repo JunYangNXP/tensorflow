@@ -28,48 +28,52 @@ limitations under the License.
 namespace tflite {
 namespace label_image {
 
-#ifndef TFLITE_MCU
 std::vector<uint8_t> decode_bmp(const uint8_t* input, int row_size, int width,
-                                int height, int channels, bool top_down) {
-  std::vector<uint8_t> output(height * width * channels);
-  for (int i = 0; i < height; i++) {
-    int src_pos;
-    int dst_pos;
+		int height, int channels, bool top_down)
+{
+	std::vector<uint8_t> output(height * width * channels);
+	int i, j;
 
-    for (int j = 0; j < width; j++) {
-      if (!top_down) {
-        src_pos = ((height - 1 - i) * row_size) + j * channels;
-      } else {
-        src_pos = i * row_size + j * channels;
-      }
+	for (i = 0; i < height; i++) {
+		int src_pos;
+		int dst_pos;
 
-      dst_pos = (i * width + j) * channels;
+		for (j = 0; j < width; j++) {
+			if (!top_down) {
+				src_pos = ((height - 1 - i) * row_size) + j * channels;
+			} else {
+				src_pos = i * row_size + j * channels;
+			}
 
-      switch (channels) {
-        case 1:
-          output[dst_pos] = input[src_pos];
-          break;
-        case 3:
-          // BGR -> RGB
-          output[dst_pos] = input[src_pos + 2];
-          output[dst_pos + 1] = input[src_pos + 1];
-          output[dst_pos + 2] = input[src_pos];
-          break;
-        case 4:
-          // BGRA -> RGBA
-          output[dst_pos] = input[src_pos + 2];
-          output[dst_pos + 1] = input[src_pos + 1];
-          output[dst_pos + 2] = input[src_pos];
-          output[dst_pos + 3] = input[src_pos + 3];
-          break;
-        default:
-          LOG(FATAL) << "Unexpected number of channels: " << channels;
-          break;
-      }
-    }
-  }
-  return output;
+			dst_pos = (i * width + j) * channels;
+
+			switch (channels) {
+			case 1:
+				output[dst_pos] = input[src_pos];
+			break;
+			case 3:
+				// BGR -> RGB
+				output[dst_pos] = input[src_pos + 2];
+				output[dst_pos + 1] = input[src_pos + 1];
+				output[dst_pos + 2] = input[src_pos];
+			break;
+			case 4:
+				// BGRA -> RGBA
+				output[dst_pos] = input[src_pos + 2];
+				output[dst_pos + 1] = input[src_pos + 1];
+				output[dst_pos + 2] = input[src_pos];
+				output[dst_pos + 3] = input[src_pos + 3];
+			break;
+			default:
+				LOG(FATAL) << "Unexpected number of channels: " << channels;
+			break;
+			}
+		}
+	}
+	return output;
 }
+
+#ifndef TFLITE_MCU
 
 std::vector<uint8_t> read_bmp(const std::string& input_bmp_name, int* width,
                               int* height, int* channels, Settings* s) {
@@ -117,74 +121,61 @@ std::vector<uint8_t> read_bmp(const std::string& input_bmp_name, int* width,
                     top_down);
 }
 #else
-uint8_t* decode_bmp(const uint8_t* input, int row_size, uint8_t* const output,
-                    int width, int height, int channels, bool top_down) {
-  for (int i = 0; i < height; i++) {
-    int src_pos;
-    int dst_pos;
 
-    for (int j = 0; j < width; j++) {
-      if (!top_down) {
-        src_pos = ((height - 1 - i) * row_size) + j * channels;
-      } else {
-        src_pos = i * row_size + j * channels;
-      }
+#include "autoconf.h"
+#include "ff.h"
+std::vector<uint8_t> read_bmp(const std::string& input_bmp_name, int* width,
+                              int* height, int* channels, Settings* s)
+{
+	int begin, end, row_size;
+	char *file_name = (char *)input_bmp_name.c_str();
+	FIL fil;
+	unsigned int len, read_len;
+	FRESULT rc = f_open(&fil, &file_name[1], FA_READ);
+	std::vector<uint8_t> err_ret(1);
+	int32_t header_size, bpp;
+	bool top_down;
+	uint8_t* bmp_pixels;
+	FILINFO finfo;
 
-      dst_pos = (i * width + j) * channels;
+	err_ret[0] = 0;
+	if (rc != FR_OK) {
+		LOG(FATAL) << "input file " << file_name << "rc:" << rc << " ,not found\n";
+		return err_ret;
+	}
 
-      switch (channels) {
-        case 1:
-          output[dst_pos] = input[src_pos];
-          break;
-        case 3:
-          // BGR -> RGB
-          output[dst_pos] = input[src_pos + 2];
-          output[dst_pos + 1] = input[src_pos + 1];
-          output[dst_pos + 2] = input[src_pos];
-          break;
-        case 4:
-          // BGRA -> RGBA
-          output[dst_pos] = input[src_pos + 2];
-          output[dst_pos + 1] = input[src_pos + 1];
-          output[dst_pos + 2] = input[src_pos];
-          output[dst_pos + 3] = input[src_pos + 3];
-          break;
-        default:
-          LOG(FATAL) << "Unexpected number of channels: " << channels;
-          break;
-      }
-    }
-  }
-  return output;
-}
+	rc = f_stat(&file_name[1], &finfo);
+	len = finfo.fsize;
 
-uint8_t* read_bmp(const char* input_bmp_data, size_t input_bmp_len, int* width, int* height,
-                  int* channels, Settings* s) {
-  const uint8_t* img_bytes = (const uint8_t*)input_bmp_data;
-  const int32_t header_size =
-      *(reinterpret_cast<const int32_t*>(img_bytes + 10));
-  *width = *(reinterpret_cast<const int32_t*>(img_bytes + 18));
-  *height = *(reinterpret_cast<const int32_t*>(img_bytes + 22));
-  const int32_t bpp = *(reinterpret_cast<const int32_t*>(img_bytes + 28));
-  *channels = bpp / 8;
+	bmp_pixels = new uint8_t[len];
+	if (!bmp_pixels)
+		return err_ret;
 
-  if (s->verbose)
-    LOG(INFO) << "width, height, channels: " << *width << ", " << *height
-              << ", " << *channels << "\n";
+	if (s->verbose)
+		LOG(INFO) << "len: " << len << "\n";
 
-  // there may be padding bytes when the width is not a multiple of 4 bytes
-  // 8 * channels == bits per pixel
-  const int row_size = (8 * *channels * *width + 31) / 32 * 4;
+	rc = f_read(&fil, bmp_pixels, len, &read_len);
+	if (read_len != len)
+		return err_ret;
 
-  // if height is negative, data layout is top down
-  // otherwise, it's bottom up
-  bool top_down = (*height < 0);
+	header_size = *((int32_t *)(bmp_pixels + 10));
+	*width = *((int *)(bmp_pixels + 18));
+	*height = *((int *)(bmp_pixels + 22));
+	bpp = *((int32_t *)(bmp_pixels + 28));
+	*channels = bpp / 8;
 
-  // Decode image, allocating tensor once the image size is known
-  uint8_t* output = new uint8_t[abs(*height) * *width * *channels];
-  const uint8_t* bmp_pixels = &img_bytes[header_size];
-  return decode_bmp(bmp_pixels, row_size, output, *width, abs(*height),
-                    *channels, top_down);
+	if (s->verbose)
+		LOG(INFO) << "width, height, channels: " << *width << ", " << *height
+			<< ", " << *channels << "\n";
+
+	row_size = (8 * (*channels) * (*width) + 31) / 32 * 4;
+
+	top_down = ((*height) < 0);
+
+	std::vector<uint8_t> decode_ret = decode_bmp(bmp_pixels + header_size, row_size, *width, abs(*height), *channels,
+		top_down);
+	delete bmp_pixels;
+	return decode_ret;
 }
 
 #endif

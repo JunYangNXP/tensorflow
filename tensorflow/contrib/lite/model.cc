@@ -12,6 +12,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#include <iostream>
+#include <string>
+#include <vector>
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,35 +83,49 @@ TfLiteStatus ConvertTensorType(TensorType tensor_type, TfLiteType* type,
   return kTfLiteOk;
 }
 
-#ifndef TFLITE_MCU
+#if 1//ndef TFLITE_MCU
 // Loads a model from `filename`. If `mmap_file` is true then use mmap,
 // otherwise make a copy of the model in a buffer.
 std::unique_ptr<Allocation> GetAllocationFromFile(const char* filename,
-                                                  bool mmap_file,
-                                                  ErrorReporter* error_reporter,
-                                                  bool use_nnapi) {
-  std::unique_ptr<Allocation> allocation;
-  if (mmap_file && MMAPAllocation::IsSupported()) {
-    if (use_nnapi && NNAPIDelegate::IsSupported())
-      allocation.reset(new NNAPIAllocation(filename, error_reporter));
-    else
-      allocation.reset(new MMAPAllocation(filename, error_reporter));
-  } else {
-    allocation.reset(new FileCopyAllocation(filename, error_reporter));
-  }
-  return allocation;
+		bool mmap_file,
+		ErrorReporter* error_reporter,
+		bool use_nnapi)
+{
+	std::unique_ptr<Allocation> allocation;
+#ifndef TFLITE_MCU
+	if (mmap_file && MMAPAllocation::IsSupported()) {
+		if (use_nnapi && NNAPIDelegate::IsSupported())
+			allocation.reset(new NNAPIAllocation(filename, error_reporter));
+		else
+			allocation.reset(new MMAPAllocation(filename, error_reporter));
+	} else {
+		allocation.reset(new FileCopyAllocation(filename, error_reporter));
+	}
+#else
+	allocation.reset(new FileCopyAllocation(filename, error_reporter));
+#endif
+	return allocation;
 }
 
 std::unique_ptr<FlatBufferModel> FlatBufferModel::BuildFromFile(
-    const char* filename, ErrorReporter* error_reporter) {
-  error_reporter = ValidateErrorReporter(error_reporter);
+    const char* filename, ErrorReporter* error_reporter)
+{
+	error_reporter = ValidateErrorReporter(error_reporter);
 
-  std::unique_ptr<FlatBufferModel> model;
-  auto allocation = GetAllocationFromFile(filename, /*mmap_file=*/true,
-                                          error_reporter, /*use_nnapi=*/true);
-  model.reset(new FlatBufferModel(allocation.release(), error_reporter));
-  if (!model->initialized()) model.reset();
-  return model;
+	std::cout << "Model name:" << filename << "\r\n";
+	std::unique_ptr<FlatBufferModel> model;
+#ifdef TFLITE_MCU
+	auto allocation = GetAllocationFromFile(filename, /*mmap_file=*/false,
+		error_reporter, /*use_nnapi=*/false);
+
+#else
+	auto allocation = GetAllocationFromFile(filename, /*mmap_file=*/true,
+		error_reporter, /*use_nnapi=*/true);
+#endif
+	model.reset(new FlatBufferModel(allocation.release(), error_reporter));
+	if (!model->initialized())
+		model.reset();
+	return model;
 }
 
 std::unique_ptr<FlatBufferModel> FlatBufferModel::VerifyAndBuildFromFile(
