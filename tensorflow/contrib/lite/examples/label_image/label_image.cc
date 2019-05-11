@@ -517,7 +517,7 @@ int main(int argc, char** argv) {
 }
 #else
 extern "C" {
-int tf_light_main(void)
+void tf_light_main(void)
 {
 	tflite::label_image::Settings s;
 

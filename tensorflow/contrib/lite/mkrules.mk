@@ -30,7 +30,7 @@ $(TFLITE_BUILD)/%.o : %.cc
 
 $(TFLITE_BUILD)/%.o : %.c
 	$(ECHO) "CC $< to $@"
-	$(Q)$(CC) $(TF_CPPFLAGS) -c -MD -o $@ $<
+	$(Q)$(CC) $(TF_CFLAGS) -c -MD -o $@ $<
 
 LIBTFLITE = libtflite.a
 
