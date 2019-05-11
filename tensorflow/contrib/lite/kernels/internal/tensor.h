@@ -25,6 +25,13 @@ namespace tflite {
 template <typename T>
 inline T* GetTensorData(TfLiteTensor* tensor);
 
+#if defined(__GNUC__) && !defined(__ARMCC_VERSION) && defined(TFLITE_MCU)
+template <>
+inline int* GetTensorData(TfLiteTensor* tensor) {
+  return tensor != nullptr ? reinterpret_cast<int*>(tensor->data.i32) : nullptr;
+}
+#endif
+
 template <>
 inline float* GetTensorData(TfLiteTensor* tensor) {
   return tensor != nullptr ? tensor->data.f : nullptr;
@@ -64,6 +71,13 @@ inline std::complex<float>* GetTensorData(TfLiteTensor* tensor) {
 
 template <typename T>
 inline const T* GetTensorData(const TfLiteTensor* tensor);
+
+#if defined(__GNUC__) && !defined(__ARMCC_VERSION) && defined(TFLITE_MCU)
+template <>
+inline const int* GetTensorData(const TfLiteTensor* tensor) {
+  return tensor != nullptr ? reinterpret_cast<int*>(tensor->data.i32) : nullptr;
+}
+#endif
 
 template <>
 inline const float* GetTensorData(const TfLiteTensor* tensor) {
@@ -126,8 +140,14 @@ inline Dims<4> GetTensorDims(const int data[], const int size) {
   return d;
 }
 
-inline Dims<4> GetTensorDims(std::vector<int32_t> data) {
+#if defined(__GNUC__) && !defined(__ARMCC_VERSION) && defined(TFLITE_MCU)
+inline Dims<4> GetTensorDims(std::vector<int> data) {
   return GetTensorDims(data.data(), data.size());
+}
+#endif
+
+inline Dims<4> GetTensorDims(std::vector<int32_t> data) {
+  return GetTensorDims(reinterpret_cast<int*>(data.data()), data.size());
 }
 
 inline Dims<4> GetTensorDims(const TfLiteTensor* tensor) {
@@ -149,7 +169,7 @@ inline RuntimeShape GetTensorShape(const TfLiteTensor* tensor) {
   }
 
   auto* dims = tensor->dims;
-  return RuntimeShape(dims->size, dims->data);
+  return RuntimeShape(dims->size, reinterpret_cast<int32*>(dims->data));
 }
 
 // A list of tensors in a format that can be used by kernels like split and

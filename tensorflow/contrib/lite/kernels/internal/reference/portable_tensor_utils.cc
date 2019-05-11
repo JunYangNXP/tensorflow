@@ -60,7 +60,7 @@ void PortableSymmetricQuantizeFloats(const float* values, const int size,
     const int32_t quantized_value =
         static_cast<int32_t>(TfLiteRound(values[i] * scaling_factor_inv));
     // Clamp: just in case some odd numeric offset.
-    quantized_values[i] = std::min(kScale, std::max(-kScale, quantized_value));
+    quantized_values[i] = std::min(kScale, std::max(-kScale, static_cast<int>(quantized_value)));
   }
 }
 

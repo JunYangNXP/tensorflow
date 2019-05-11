@@ -80,11 +80,11 @@ inline int32_t ClampedIndex(int32_t index, int dim, bool pos_stride) {
   return pos_stride
              ? (index >= dim ? dim
                              : PositiveRemainder(
-                                   std::min(std::max(index, -dim), dim), dim))
+                                   std::min(std::max(static_cast<int>(index), -dim), dim), dim))
              : (index < -dim
                     ? -1
                     : PositiveRemainder(
-                          std::min(std::max(index, -dim), dim - 1), dim));
+                          std::min(std::max(static_cast<int>(index), -dim), dim - 1), dim));
 }
 
 // TODO(b/77971377) this logic should be removed, as it's a duplication of
@@ -194,14 +194,14 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
     TF_LITE_ENSURE_OK(context, ResizeOutputTensor(context, &op_context));
   }
 
-  std::vector<int32_t> starts;
-  std::vector<int32_t> stops;
-  std::vector<int32_t> strides;
+  std::vector<int> starts;
+  std::vector<int> stops;
+  std::vector<int> strides;
 
   for (int idx = op_context.dims - 1; idx >= 0; --idx) {
-    starts.emplace_back(GetTensorData<int32_t>(op_context.begin)[idx]);
-    stops.emplace_back(GetTensorData<int32_t>(op_context.end)[idx]);
-    strides.emplace_back(GetTensorData<int32_t>(op_context.strides)[idx]);
+    starts.emplace_back(GetTensorData<int>(op_context.begin)[idx]);
+    stops.emplace_back(GetTensorData<int>(op_context.end)[idx]);
+    strides.emplace_back(GetTensorData<int>(op_context.strides)[idx]);
   }
 
   for (int i = op_context.dims; i < kMaxDim; i++) {

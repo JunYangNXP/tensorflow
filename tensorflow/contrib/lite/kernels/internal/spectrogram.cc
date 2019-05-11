@@ -29,7 +29,7 @@ namespace {
 // Returns the default Hann window function for the spectrogram.
 void GetPeriodicHann(int window_length, std::vector<double>* window) {
   // Some platforms don't have M_PI, so define a local constant here.
-  const double pi = std::atan(1) * 4;
+  const double pi = std::atan(1.0) * 4.0;
   window->resize(window_length);
   for (int i = 0; i < window_length; ++i) {
     (*window)[i] = 0.5 - 0.5 * cos((2 * pi * i) / window_length);
@@ -98,7 +98,7 @@ bool Spectrogram::Initialize(const std::vector<double>& window,
 
   int half_fft_length = fft_length_ / 2;
   fft_double_working_area_.assign(half_fft_length, 0.0);
-  fft_integer_working_area_.assign(2 + static_cast<int>(sqrt(half_fft_length)),
+  fft_integer_working_area_.assign(2 + static_cast<int>(sqrt(static_cast<float>(half_fft_length))),
                                    0);
   // Set flag element to ensure that the working areas are initialized
   // on the first call to cdft.  It's redundant given the assign above,

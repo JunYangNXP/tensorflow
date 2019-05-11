@@ -45,7 +45,7 @@ struct TransposeContext {
 TfLiteStatus ResizeOutputTensor(TfLiteContext* context,
                                 TransposeContext* op_context) {
   int dims = NumDimensions(op_context->input);
-  const int* perm_data = GetTensorData<int32_t>(op_context->perm);
+  const int* perm_data = GetTensorData<int>(op_context->perm);
 
   // Ensure validity of the permutations tensor as a 1D tensor.
   TF_LITE_ENSURE_EQ(context, NumDimensions(op_context->perm), 1);
@@ -94,7 +94,7 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
 
   // Reverse the permuted axes and convert to 4D due to the way Dims are
   // constructed in GetTensorDims.
-  const int* perm_data = GetTensorData<int32_t>(op_context.perm);
+  const int* perm_data = GetTensorData<int>(op_context.perm);
   const int size = op_context.perm->dims->data[0];
   const int kOutputDimensionNum = 4;
   int reversed_perm[kOutputDimensionNum];

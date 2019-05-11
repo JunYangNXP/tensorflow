@@ -237,7 +237,7 @@ TfLiteStatus LogSoftmaxPrepare(TfLiteContext* context, TfLiteNode* node) {
     tflite::PreprocessLogSoftmaxScalingExp(
         kBeta, input->params.scale, kScaledDiffIntegerBits,
         &data->input_multiplier, &data->input_left_shift,
-        &data->reverse_scaling_divisor, &data->reverse_scaling_right_shift);
+        &data->reverse_scaling_divisor, reinterpret_cast<int*>(&data->reverse_scaling_right_shift));
     data->reverse_scaling_right_shift *= -1;
     data->diff_min = -1.0 * tflite::CalculateInputRadius(
                                 kScaledDiffIntegerBits, data->input_left_shift);

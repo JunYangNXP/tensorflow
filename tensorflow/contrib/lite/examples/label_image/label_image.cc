@@ -29,7 +29,9 @@ limitations under the License.
 #include <getopt.h>     // NOLINT(build/include_order)
 #include <sys/time.h>   // NOLINT(build/include_order)
 #include <sys/types.h>  // NOLINT(build/include_order)
+#ifndef TFLITE_MCU
 #include <sys/uio.h>    // NOLINT(build/include_order)
+#endif
 #include <unistd.h>     // NOLINT(build/include_order)
 
 #include "tensorflow/contrib/lite/kernels/register.h"
@@ -40,11 +42,17 @@ limitations under the License.
 #include "tensorflow/contrib/lite/examples/label_image/bitmap_helpers.h"
 #include "tensorflow/contrib/lite/examples/label_image/get_top_n.h"
 
+#ifdef TFLITE_MCU
+#include "stopwatch_image.h"
+#include "mobilenet_v1_0.25_128_quant_model.h"
+#include "labels.h"
+#endif
 #define LOG(x) std::cerr
 
 namespace tflite {
 namespace label_image {
 
+#ifndef TFLITE_MCU
 double get_us(struct timeval t) { return (t.tv_sec * 1000000 + t.tv_usec); }
 
 // Takes a file name, and loads a list of labels from it, one per line, and
@@ -345,10 +353,180 @@ int Main(int argc, char** argv) {
   RunInference(&s);
   return 0;
 }
+#else
+/* Loads a list of labels, one per line, and returns a vector of the strings.
+   It pads with empty strings so the length of the result is a multiple of 16,
+   because the model expects that. */
+TfLiteStatus ReadLabels(const string& labels,
+		std::vector<string>* result,
+		size_t* found_label_count)
+{
+	std::istringstream stream(labels);
+	result->clear();
+	string line;
+	while (std::getline(stream, line)) {
+		result->push_back(line);
+	}
+	*found_label_count = result->size();
+	const int padding = 16;
+	while (result->size() % padding) {
+		result->emplace_back();
+	}
+	return kTfLiteOk;
+}
+
+void RunInference(Settings* s)
+{
+	std::unique_ptr<tflite::FlatBufferModel> model;
+	std::unique_ptr<tflite::Interpreter> interpreter;
+	model = tflite::FlatBufferModel::BuildFromBuffer(mobilenet_model, mobilenet_model_len);
+	if (!model) {
+		LOG(FATAL) << "Failed to load model\r\n";
+		return;
+	}
+	model->error_reporter();
+
+	tflite::ops::builtin::BuiltinOpResolver resolver;
+
+	tflite::InterpreterBuilder(*model, resolver)(&interpreter);
+	if (!interpreter) {
+		LOG(FATAL) << "Failed to construct interpreter\r\n";
+		return;
+	}
+
+	if (s->verbose) {
+		LOG(INFO) << "tensors size: " << interpreter->tensors_size() << "\r\n";
+		LOG(INFO) << "nodes size: " << interpreter->nodes_size() << "\r\n";
+		LOG(INFO) << "inputs: " << interpreter->inputs().size() << "\r\n";
+		LOG(INFO) << "input(0) name: " << interpreter->GetInputName(0) << "\r\n";
+
+		int t_size = interpreter->tensors_size();
+		for (int i = 0; i < t_size; i++) {
+			if (interpreter->tensor(i)->name)
+				LOG(INFO) << i << ": " << interpreter->tensor(i)->name << ", "
+					<< interpreter->tensor(i)->bytes << ", "
+					<< interpreter->tensor(i)->type << ", "
+					<< interpreter->tensor(i)->params.scale << ", "
+					<< interpreter->tensor(i)->params.zero_point << "\r\n";
+		}
+	}
+
+	int image_width = 128;
+	int image_height = 128;
+	int image_channels = 3;
+	uint8_t* in = read_bmp(stopwatch_bmp, stopwatch_bmp_len, &image_width, &image_height,
+		&image_channels, s);
+
+	int input = interpreter->inputs()[0];
+	if (s->verbose)
+		LOG(INFO) << "input: " << input << "\r\n";
+
+	const std::vector<int> inputs = interpreter->inputs();
+	const std::vector<int> outputs = interpreter->outputs();
+
+	if (s->verbose) {
+		LOG(INFO) << "number of inputs: " << inputs.size() << "\r\n";
+		LOG(INFO) << "number of outputs: " << outputs.size() << "\r\n";
+	}
+
+	if (interpreter->AllocateTensors() != kTfLiteOk) {
+		LOG(FATAL) << "Failed to allocate tensors!";
+	}
+
+	if (s->verbose)
+		PrintInterpreterState(interpreter.get());
+
+	/* Get input dimension from the input tensor metadata
+	assuming one input only */
+	TfLiteIntArray* dims = interpreter->tensor(input)->dims;
+	int wanted_height = dims->data[1];
+	int wanted_width = dims->data[2];
+	int wanted_channels = dims->data[3];
+
+	switch (interpreter->tensor(input)->type) {
+		case kTfLiteFloat32:
+			s->input_floating = true;
+			resize<float>(interpreter->typed_tensor<float>(input), in, image_height,
+				image_width, image_channels, wanted_height, wanted_width,
+				wanted_channels, s);
+			break;
+		case kTfLiteUInt8:
+			resize<uint8_t>(interpreter->typed_tensor<uint8_t>(input), in,
+				image_height, image_width, image_channels, wanted_height,
+				wanted_width, wanted_channels, s);
+			break;
+		default:
+			LOG(FATAL) << "cannot handle input type "
+				<< interpreter->tensor(input)->type << " yet";
+			exit(-1);
+	}
+
+	for (int i = 0; i < s->loop_count; i++) {
+		if (interpreter->Invoke() != kTfLiteOk) {
+			LOG(FATAL) << "Failed to invoke tflite!\r\n";
+		}
+	}
+
+	const float threshold = 0.001f;
+
+	std::vector<std::pair<float, int>> top_results;
+
+	int output = interpreter->outputs()[0];
+	TfLiteIntArray* output_dims = interpreter->tensor(output)->dims;
+	/* Assume output dims to be something like (1, 1, ... , size) */
+	auto output_size = output_dims->data[output_dims->size - 1];
+	switch (interpreter->tensor(output)->type) {
+		case kTfLiteFloat32:
+			get_top_n<float>(interpreter->typed_output_tensor<float>(0), output_size,
+				s->number_of_results, threshold, &top_results, true);
+			break;
+		case kTfLiteUInt8:
+			get_top_n<uint8_t>(interpreter->typed_output_tensor<uint8_t>(0),
+				output_size, s->number_of_results, threshold,
+				&top_results, false);
+			break;
+		default:
+			LOG(FATAL) << "cannot handle output type "
+				<< interpreter->tensor(input)->type << " yet";
+			return;
+	}
+
+	std::vector<string> labels;
+	size_t label_count;
+
+	if (ReadLabels(labels_txt, &labels, &label_count) != kTfLiteOk) {
+		return;
+	}
+
+	LOG(INFO) << "Detected:\r\n";
+	for (const auto& result : top_results) {
+		const float confidence = result.first;
+		const int index = result.second;
+		LOG(INFO) << "  " << labels[index] << " (" << (int)(confidence * 100) << "% confidence)\r\n";
+	}
+}
+
+#endif
 
 }  // namespace label_image
 }  // namespace tflite
 
+#ifndef TFLITE_MCU
 int main(int argc, char** argv) {
   return tflite::label_image::Main(argc, argv);
 }
+#else
+extern "C" {
+int tf_light_main(void)
+{
+	tflite::label_image::Settings s;
+
+	std::cout << "Label image example using a TensorFlow Lite model\r\n";
+
+	tflite::label_image::RunInference(&s);
+
+	std::cout << "Label image example using a TensorFlow Lite model done!\r\n";
+}
+}
+
+#endif

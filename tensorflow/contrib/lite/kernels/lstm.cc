@@ -975,7 +975,9 @@ void* Init(TfLiteContext* context, const char* buffer, size_t length) {
     case kTfLiteLSTMBasicKernel:
       return basic::Init(context, buffer, length);
   }
+  return nullptr;
 }
+
 void Free(TfLiteContext* context, void* buffer) {
   gemm_support::DecrementUsageCounter(context);
 
@@ -990,6 +992,7 @@ TfLiteStatus Prepare(TfLiteContext* context, TfLiteNode* node) {
     case kTfLiteLSTMBasicKernel:
       return basic::Prepare(context, node);
   }
+  return kTfLiteError;
 }
 
 TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
@@ -1000,6 +1003,7 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
     case kTfLiteLSTMBasicKernel:
       return basic::Eval(context, node);
   }
+  return kTfLiteError;
 }
 
 }  // namespace lstm

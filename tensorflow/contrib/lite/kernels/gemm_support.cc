@@ -33,10 +33,12 @@ RefCountedGemmContext* GetGemmLowpContext(TfLiteContext* context) {
 }
 
 TfLiteStatus Refresh(TfLiteContext* context) {
+#ifndef TFLITE_MCU
   auto* ptr = GetGemmLowpContext(context);
   if (ptr != nullptr) {
     ptr->gemm_context->set_max_num_threads(context->recommended_num_threads);
   }
+#endif
   return kTfLiteOk;
 }
 
@@ -49,9 +51,11 @@ void IncrementUsageCounter(TfLiteContext* context) {
     ptr->type = kTfLiteGemmLowpContext;
     ptr->Refresh = Refresh;
     ptr->gemm_context.reset(new gemmlowp::GemmContext());
+#ifndef TFLITE_MCU
     if (context->recommended_num_threads != -1) {
       ptr->gemm_context->set_max_num_threads(context->recommended_num_threads);
     }
+#endif
     ptr->num_references = 0;
     context->SetExternalContext(context, kTfLiteGemmLowpContext, ptr);
   }

@@ -12,7 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-
+#ifndef TFLITE_MCU
 #include "tensorflow/contrib/lite/nnapi_delegate.h"
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -822,3 +822,4 @@ TfLiteStatus NNAPIDelegate::Invoke(Interpreter* interpreter) {
 bool NNAPIDelegate::IsSupported() { return NNAPIExists(); }
 
 }  // namespace tflite
+#endif

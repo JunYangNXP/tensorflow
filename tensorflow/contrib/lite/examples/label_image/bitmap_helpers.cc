@@ -28,6 +28,7 @@ limitations under the License.
 namespace tflite {
 namespace label_image {
 
+#ifndef TFLITE_MCU
 std::vector<uint8_t> decode_bmp(const uint8_t* input, int row_size, int width,
                                 int height, int channels, bool top_down) {
   std::vector<uint8_t> output(height * width * channels);
@@ -115,6 +116,77 @@ std::vector<uint8_t> read_bmp(const std::string& input_bmp_name, int* width,
   return decode_bmp(bmp_pixels, row_size, *width, abs(*height), *channels,
                     top_down);
 }
+#else
+uint8_t* decode_bmp(const uint8_t* input, int row_size, uint8_t* const output,
+                    int width, int height, int channels, bool top_down) {
+  for (int i = 0; i < height; i++) {
+    int src_pos;
+    int dst_pos;
 
+    for (int j = 0; j < width; j++) {
+      if (!top_down) {
+        src_pos = ((height - 1 - i) * row_size) + j * channels;
+      } else {
+        src_pos = i * row_size + j * channels;
+      }
+
+      dst_pos = (i * width + j) * channels;
+
+      switch (channels) {
+        case 1:
+          output[dst_pos] = input[src_pos];
+          break;
+        case 3:
+          // BGR -> RGB
+          output[dst_pos] = input[src_pos + 2];
+          output[dst_pos + 1] = input[src_pos + 1];
+          output[dst_pos + 2] = input[src_pos];
+          break;
+        case 4:
+          // BGRA -> RGBA
+          output[dst_pos] = input[src_pos + 2];
+          output[dst_pos + 1] = input[src_pos + 1];
+          output[dst_pos + 2] = input[src_pos];
+          output[dst_pos + 3] = input[src_pos + 3];
+          break;
+        default:
+          LOG(FATAL) << "Unexpected number of channels: " << channels;
+          break;
+      }
+    }
+  }
+  return output;
+}
+
+uint8_t* read_bmp(const char* input_bmp_data, size_t input_bmp_len, int* width, int* height,
+                  int* channels, Settings* s) {
+  const uint8_t* img_bytes = (const uint8_t*)input_bmp_data;
+  const int32_t header_size =
+      *(reinterpret_cast<const int32_t*>(img_bytes + 10));
+  *width = *(reinterpret_cast<const int32_t*>(img_bytes + 18));
+  *height = *(reinterpret_cast<const int32_t*>(img_bytes + 22));
+  const int32_t bpp = *(reinterpret_cast<const int32_t*>(img_bytes + 28));
+  *channels = bpp / 8;
+
+  if (s->verbose)
+    LOG(INFO) << "width, height, channels: " << *width << ", " << *height
+              << ", " << *channels << "\n";
+
+  // there may be padding bytes when the width is not a multiple of 4 bytes
+  // 8 * channels == bits per pixel
+  const int row_size = (8 * *channels * *width + 31) / 32 * 4;
+
+  // if height is negative, data layout is top down
+  // otherwise, it's bottom up
+  bool top_down = (*height < 0);
+
+  // Decode image, allocating tensor once the image size is known
+  uint8_t* output = new uint8_t[abs(*height) * *width * *channels];
+  const uint8_t* bmp_pixels = &img_bytes[header_size];
+  return decode_bmp(bmp_pixels, row_size, output, *width, abs(*height),
+                    *channels, top_down);
+}
+
+#endif
 }  // namespace label_image
 }  // namespace tflite

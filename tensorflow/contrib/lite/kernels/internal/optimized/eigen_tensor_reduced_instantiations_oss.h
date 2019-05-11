@@ -55,7 +55,9 @@ typedef unsigned __int64 uint64_t;
 #include <windows.h>
 #else
 #include <stdint.h>
+#ifndef __ICCARM__
 #include <unistd.h>
+#endif
 #endif
 
 #if __cplusplus > 199711 || EIGEN_COMP_MSVC >= 1900

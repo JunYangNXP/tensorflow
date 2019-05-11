@@ -12,44 +12,16 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-#include "tensorflow/contrib/lite/profiling/_time.h"
+#ifndef TENSORFLOW_CONTRIB_LITE_PROFILING_TIME_H_
+#define TENSORFLOW_CONTRIB_LITE_PROFILING_TIME_H_
 
-#if defined(_MSC_VER)
-#include <chrono>  // NOLINT(build/c++11)
-#elif defined(__ICCARM__) || defined(__ARMCC_VERSION)
-#include <time.h>
-#else
-#include <sys/time.h>
-#endif
+#include <cstdint>
 
 namespace tflite {
 namespace profiling {
 namespace time {
-
-#if defined(_MSC_VER)
-
-uint64_t NowMicros() {
-  return std::chrono::duration_cast<std::chrono::microseconds>(
-             std::chrono::system_clock::now().time_since_epoch())
-      .count();
-}
-
-#elif defined(__ICCARM__) || defined(__ARMCC_VERSION)
-
-uint64_t NowMicros() {
-  return static_cast<uint64_t>(clock()) * 1000000 / CLOCKS_PER_SEC;
-}
-
-#else
-
-uint64_t NowMicros() {
-  struct timeval tv;
-  gettimeofday(&tv, nullptr);
-  return static_cast<uint64_t>(tv.tv_sec) * 1000000 + tv.tv_usec;
-}
-
-#endif  // defined(_MSC_VER)
-
+uint64_t NowMicros();
 }  // namespace time
 }  // namespace profiling
 }  // namespace tflite
+#endif  // TENSORFLOW_CONTRIB_LITE_PROFILING_TIME_H_

@@ -87,7 +87,7 @@ void PrintInterpreterState(Interpreter* interpreter) {
        tensor_index++) {
     TfLiteTensor* tensor = interpreter->tensor(tensor_index);
     printf("Tensor %3d %-20s %10s %15s %10zu bytes (%4.1f MB) ", tensor_index,
-           tensor->name, TensorTypeName(tensor->type),
+           (tensor->name ? tensor->name : ""), TensorTypeName(tensor->type),
            AllocTypeName(tensor->allocation_type), tensor->bytes,
            (static_cast<float>(tensor->bytes) / (1 << 20)));
     PrintTfLiteIntVector(tensor->dims);

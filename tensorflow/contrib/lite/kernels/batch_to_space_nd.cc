@@ -56,8 +56,8 @@ const int kSpatialDimensionNum = 2;
 TfLiteStatus ResizeOutputTensor(TfLiteContext* context,
                                 BatchToSpaceNDContext* op_context) {
   TfLiteIntArray* input_size = op_context->input->dims;
-  const int* block_shape = GetTensorData<int32>(op_context->block_shape);
-  const int* crops = GetTensorData<int32>(op_context->crops);
+  const int* block_shape = GetTensorData<int>(op_context->block_shape);
+  const int* crops = GetTensorData<int>(op_context->crops);
 
   TF_LITE_ENSURE_EQ(context, NumDimensions(op_context->block_shape),
                     kBlockSizeDimensionNum);

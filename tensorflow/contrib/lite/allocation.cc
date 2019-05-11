@@ -15,8 +15,10 @@ limitations under the License.
 
 #include "tensorflow/contrib/lite/allocation.h"
 
+#ifndef TFLITE_MCU
 #include <sys/stat.h>
 #include <sys/types.h>
+#endif
 #include <cassert>
 #include <cstdarg>
 #include <cstdint>

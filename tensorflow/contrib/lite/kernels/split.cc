@@ -105,7 +105,7 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
                             op_context.params->num_splits));
   }
 
-  int axis_value = GetTensorData<int>(op_context.axis)[0];
+  int axis_value = GetTensorData<int32_t>(op_context.axis)[0];
   if (axis_value < 0) {
     axis_value += NumDimensions(op_context.input);
   }

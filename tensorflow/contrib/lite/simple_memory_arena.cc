@@ -12,6 +12,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
+#include <iostream>
+#include <string>
+#include <vector>
 
 #include "tensorflow/contrib/lite/simple_memory_arena.h"
 
@@ -19,6 +22,7 @@ limitations under the License.
 #include <cstring>
 #include <limits>
 #include <vector>
+#include <algorithm>
 
 namespace {
 
@@ -31,7 +35,6 @@ T AlignTo(size_t alignment, T offset) {
 }  // namespace
 
 namespace tflite {
-
 TfLiteStatus SimpleMemoryArena::Allocate(TfLiteContext* context,
                                          size_t alignment, size_t size,
                                          ArenaAlloc* new_alloc) {

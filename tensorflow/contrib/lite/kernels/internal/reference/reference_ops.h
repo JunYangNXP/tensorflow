@@ -16,7 +16,11 @@ limitations under the License.
 #define TENSORFLOW_CONTRIB_LITE_KERNELS_INTERNAL_REFERENCE_REFERENCE_OPS_H_
 
 #include <stdint.h>
+#if !defined(__ICCARM__) && !defined(__ARMCC_VERSION)
 #include <sys/types.h>
+#elif defined(__ICCARM__)
+#include <intrinsics.h>
+#endif
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -72,7 +76,7 @@ inline std::int16_t SaturatingSub(std::int16_t a, std::int16_t b) {
   std::int32_t a32 = a;
   std::int32_t b32 = b;
   std::int32_t diff = a32 - b32;
-  return static_cast<std::int16_t>(std::min(32767, std::max(-32768, diff)));
+  return static_cast<std::int16_t>(std::min(static_cast<std::int32_t>(32767), std::max(static_cast<std::int32_t>(-32768), diff)));
 }
 
 template <>
@@ -741,8 +745,8 @@ inline void ShuffledFullyConnected(
         acc = MultiplyByQuantizedMultiplier(acc, output_multiplier,
                                             -output_shift);
         // Saturate, cast to int16, and store to output array.
-        acc = std::max(acc, output_activation_min);
-        acc = std::min(acc, output_activation_max);
+        acc = std::max(static_cast<int32>(acc), output_activation_min);
+        acc = std::min(static_cast<int32>(acc), output_activation_max);
         output_ptr[c + i] = acc;
       }
     }
@@ -792,8 +796,8 @@ inline void ShuffledFullyConnected(
           acc = MultiplyByQuantizedMultiplier(acc, output_multiplier,
                                               -output_shift);
           // Saturate, cast to int16, and store to output array.
-          acc = std::max(acc, output_activation_min);
-          acc = std::min(acc, output_activation_max);
+          acc = std::max(static_cast<int32>(acc), output_activation_min);
+          acc = std::min(static_cast<int32>(acc), output_activation_max);
           output_ptr[b * output_depth + c + i] = acc;
         }
       }
@@ -980,7 +984,7 @@ inline void L2Normalization(const tflite::L2NormalizationParams& op_params,
       int32 rescaled_diff = MultiplyByQuantizedMultiplierSmallerThanOneExp(
           128 * diff, inv_l2norm_multiplier, inv_l2norm_shift);
       int32 unclamped_output_val = 128 + rescaled_diff;
-      int32 output_val = std::min(255, std::max(0, unclamped_output_val));
+      int32 output_val = std::min(static_cast<int32>(255), std::max(static_cast<int32>(0), unclamped_output_val));
       output_data[depth * i + c] = static_cast<uint8>(output_val);
     }
   }
@@ -2084,7 +2088,7 @@ inline void ConcatenationWithScaling(const ConcatenationParams& params,
               static_cast<int32_t>(round(input_ptr[j] * scale + bias)) +
               output_zeropoint;
           output_ptr[j] =
-              static_cast<uint8_t>(std::max(std::min(255, value), 0));
+              static_cast<uint8_t>(std::max(std::min(static_cast<int32_t>(255), value), static_cast<int32_t>(0)));
         }
       }
       output_ptr += copy_size;
@@ -2188,7 +2192,7 @@ void Pack(int dim, const Scalar* const* input_data,
               static_cast<int32_t>(round(input_ptr[j] * scale + bias)) +
               output_zeropoint;
           output_ptr[j] =
-              static_cast<uint8_t>(std::max(std::min(255, value), 0));
+              static_cast<uint8_t>(std::max(std::min(static_cast<int32_t>(255), value), static_cast<int32_t>(0)));
         }
       }
       output_ptr += copy_size;
@@ -2443,7 +2447,7 @@ void LstmCell(const uint8* input_data_uint8, const Dims<4>& input_dims,
       accum =
           MultiplyByQuantizedMultiplier(accum, accum_multiplier, accum_shift);
       // Saturate, cast to int16, and store to the temporary activations array.
-      accum = std::max(-32768, std::min(32767, accum));
+      accum = std::max(-32768, std::min(32767, static_cast<int>(accum)));
       activ_temp_data_int16[out_c + fc_output_depth * b] = accum;
     }
   }
@@ -2852,8 +2856,8 @@ inline void LocalResponseNormalization(
 
   for (int i = 0; i < outer_size; ++i) {
     for (int c = 0; c < depth; ++c) {
-      const int begin_input_c = std::max(0, c - op_params.range);
-      const int end_input_c = std::min(depth, c + op_params.range);
+      const int begin_input_c = std::max(static_cast<int32>(0), c - op_params.range);
+      const int end_input_c = std::min(static_cast<int32>(depth), c + op_params.range);
       float accum = 0.f;
       for (int input_c = begin_input_c; input_c < end_input_c; ++input_c) {
         const float input_val = input_data[i * depth + input_c];
@@ -2970,7 +2974,7 @@ inline void Softmax(const uint8* input_data, const RuntimeShape& input_shape,
             (shifted_scale * exp_in_0).raw(), num_bits_over_unit + 31 - 8);
 
         output_data[i * depth + c] = static_cast<uint8>(
-            std::max(std::min(unsat_output, static_cast<int32>(255)), 0));
+            std::max(std::min(unsat_output, static_cast<int32>(255)), static_cast<int32>(0)));
 
       } else {
         output_data[i * depth + c] = 0;
@@ -3061,7 +3065,7 @@ log_x_for_x_greater_than_or_equal_to_1_impl(
   //                   InputIntegerBits - z_b_headroom - 0.25);
   const FixedPointAccum z_a_pow_2_adj = SaturatingAddNonGemmlowp(
       FixedPointAccum::FromRaw(SaturatingRoundingMultiplyByPOTParam(
-          InputIntegerBits - z_a_headroom_plus_1, 31 - kAccumIntegerBits)),
+          static_cast<int32>(InputIntegerBits - z_a_headroom_plus_1), 31 - kAccumIntegerBits)),
       shifted_quarter);
 
   // z_b is treated like z_a, but premultiplying by sqrt(0.5).
@@ -3071,7 +3075,7 @@ log_x_for_x_greater_than_or_equal_to_1_impl(
       SaturatingRoundingMultiplyByPOTParam(z_a.raw(), z_b_headroom);
   const FixedPointAccum z_b_pow_2_adj = SaturatingSub(
       FixedPointAccum::FromRaw(SaturatingRoundingMultiplyByPOTParam(
-          InputIntegerBits - z_b_headroom, 31 - kAccumIntegerBits)),
+          static_cast<int32>(InputIntegerBits - z_b_headroom), 31 - kAccumIntegerBits)),
       shifted_quarter);
 
   const FixedPoint0 r = FixedPoint0::FromRaw(std::min(r_a_raw, r_b_raw));
@@ -3183,7 +3187,7 @@ inline void LogSoftmax(const uint8* input_data, const RuntimeShape& input_shape,
     const int rescaled_diff_min =
         fixed_log_sum_of_exps + std::numeric_limits<int32>::lowest();
     const int adjusted_diff_min =
-        std::max(diff_min - 1,  // Note use of > below instead of >= above.
+        std::max(static_cast<int32>(diff_min - 1),  // Note use of > below instead of >= above.
                  MultiplyByQuantizedMultiplierSmallerThanOneExp(
                      rescaled_diff_min, reverse_scaling_divisor,
                      kReverseShift * reverse_scaling_right_shift));
@@ -3202,7 +3206,7 @@ inline void LogSoftmax(const uint8* input_data, const RuntimeShape& input_shape,
             255;
 
         output_data[i * depth + c] = static_cast<uint8>(
-            std::max(std::min(unsat_output, static_cast<int32>(255)), 0));
+            std::max(std::min(unsat_output, static_cast<int32>(255)), static_cast<int32>(0)));
       } else {
         // Set output to smallest value.
         output_data[i * depth + c] = 0;
@@ -4536,7 +4540,7 @@ inline void Pow(const RuntimeShape& input1_shape, const T* input1_data,
   const int flat_size =
       MatchingFlatSize(input1_shape, input2_shape, output_shape);
   for (int i = 0; i < flat_size; ++i) {
-    output_data[i] = std::pow(input1_data[i], input2_data[i]);
+    output_data[i] = std::pow(static_cast<float>(input1_data[i]), input2_data[i]);
   }
 }
 
@@ -4561,7 +4565,7 @@ inline void BroadcastPow4DSlow(const RuntimeShape& input1_shape,
           auto in2_idx = SubscriptToIndex(desc2, b, y, x, c);
           auto in1_val = input1_data[in1_idx];
           auto in2_val = input2_data[in2_idx];
-          output_data[out_idx] = std::pow(in1_val, in2_val);
+          output_data[out_idx] = std::pow(static_cast<float>(in1_val), in2_val);
         }
       }
     }

@@ -12,18 +12,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 ==============================================================================*/
-
+#ifndef TFLITE_MCU
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
 
 #include "tensorflow/contrib/lite/allocation.h"
 #include "tensorflow/contrib/lite/error_reporter.h"
 
 namespace tflite {
-
+#ifndef TFLITE_MCU
 MMAPAllocation::MMAPAllocation(const char* filename,
                                ErrorReporter* error_reporter)
     : Allocation(error_reporter), mmapped_buffer_(MAP_FAILED) {
@@ -57,5 +58,26 @@ size_t MMAPAllocation::bytes() const { return buffer_size_bytes_; }
 bool MMAPAllocation::valid() const { return mmapped_buffer_ != MAP_FAILED; }
 
 bool MMAPAllocation::IsSupported() { return true; }
+#else
+MMAPAllocation::MMAPAllocation(const char* filename,
+                               ErrorReporter* error_reporter)
+    : Allocation(error_reporter), mmapped_buffer_(0)
+{
+	return;
+}
+
+MMAPAllocation::~MMAPAllocation()
+{
+	return;
+}
+
+const void* MMAPAllocation::base() const { return mmapped_buffer_; }
+
+size_t MMAPAllocation::bytes() const { return buffer_size_bytes_; }
+
+bool MMAPAllocation::valid() const { return mmapped_buffer_ != 0; }
+
+bool MMAPAllocation::IsSupported() { return false; }
+#endif
 
 }  // namespace tflite

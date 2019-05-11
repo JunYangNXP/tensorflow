@@ -16,8 +16,11 @@ limitations under the License.
 
 #include <utility>
 
+#include "third_party/eigen3/Eigen/Core"
 #include "tensorflow/contrib/lite/arena_planner.h"
+#ifndef TFLITE_MCU
 #include "tensorflow/contrib/lite/kernels/internal/optimized/eigen_spatial_convolutions.h"
+#endif
 #include "tensorflow/contrib/lite/kernels/op_macros.h"
 
 namespace tflite {
@@ -34,6 +37,7 @@ static_assert(
     "kDefaultArenaAlignment doesn't comply with Eigen alignment requirement.");
 #endif  // EIGEN_DONT_ALIGN
 
+#ifndef TFLITE_MCU
 // We have a single global threadpool for all convolution operations. This means
 // that inferences started from different threads may block each other, but
 // since the underlying resource of CPU cores should be consumed by the
@@ -53,10 +57,13 @@ class EigenThreadPoolWrapper : public Eigen::ThreadPoolInterface {
  private:
   std::unique_ptr<Eigen::ThreadPool> pool_;
 };
+#endif
 
 struct RefCountedEigenContext : public TfLiteExternalContext {
+#ifndef TFLITE_MCU
   std::unique_ptr<Eigen::ThreadPoolInterface> thread_pool_wrapper;
   std::unique_ptr<Eigen::ThreadPoolDevice> device;
+#endif
   int num_references = 0;
 };
 
@@ -66,6 +73,7 @@ RefCountedEigenContext* GetEigenContext(TfLiteContext* context) {
 }
 
 void InitDevice(TfLiteContext* context, RefCountedEigenContext* ptr) {
+#ifndef TFLITE_MCU
   int num_threads = 4;
   if (context->recommended_num_threads != -1) {
     num_threads = context->recommended_num_threads;
@@ -75,10 +83,13 @@ void InitDevice(TfLiteContext* context, RefCountedEigenContext* ptr) {
       new EigenThreadPoolWrapper(new Eigen::ThreadPool(num_threads)));
   ptr->device.reset(
       new Eigen::ThreadPoolDevice(ptr->thread_pool_wrapper.get(), num_threads));
+#endif
 }
 
 TfLiteStatus Refresh(TfLiteContext* context) {
+#ifndef TFLITE_MCU
   Eigen::setNbThreads(context->recommended_num_threads);
+#endif
 
   auto* ptr = GetEigenContext(context);
   if (ptr != nullptr) {
@@ -93,9 +104,11 @@ TfLiteStatus Refresh(TfLiteContext* context) {
 void IncrementUsageCounter(TfLiteContext* context) {
   auto* ptr = GetEigenContext(context);
   if (ptr == nullptr) {
+#ifndef TFLITE_MCU
     if (context->recommended_num_threads != -1) {
       Eigen::setNbThreads(context->recommended_num_threads);
     }
+#endif
     ptr = new RefCountedEigenContext;
     ptr->type = kTfLiteEigenContext;
     ptr->Refresh = Refresh;
@@ -119,6 +132,7 @@ void DecrementUsageCounter(TfLiteContext* context) {
   }
 }
 
+#ifndef TFLITE_MCU
 const Eigen::ThreadPoolDevice* GetThreadPoolDevice(TfLiteContext* context) {
   auto* ptr = GetEigenContext(context);
   if (ptr == nullptr) {
@@ -127,6 +141,7 @@ const Eigen::ThreadPoolDevice* GetThreadPoolDevice(TfLiteContext* context) {
   }
   return ptr->device.get();
 }
+#endif
 
 }  // namespace eigen_support
 }  // namespace tflite

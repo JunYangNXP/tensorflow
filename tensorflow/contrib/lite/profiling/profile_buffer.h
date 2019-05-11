@@ -18,7 +18,7 @@ limitations under the License.
 #include <cstddef>
 #include <cstdint>
 
-#include "tensorflow/contrib/lite/profiling/time.h"
+#include "tensorflow/contrib/lite/profiling/_time.h"
 
 namespace tflite {
 namespace profiling {

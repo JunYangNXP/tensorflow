@@ -24,8 +24,10 @@ limitations under the License.
 #include "tensorflow/contrib/lite/context.h"
 #include "tensorflow/contrib/lite/kernels/eigen_support.h"
 #include "tensorflow/contrib/lite/kernels/gemm_support.h"
+#ifndef TFLITE_MCU
 #include "tensorflow/contrib/lite/kernels/internal/optimized/cblas_conv.h"
 #include "tensorflow/contrib/lite/kernels/internal/optimized/multithreaded_conv.h"
+#endif
 #include "tensorflow/contrib/lite/kernels/internal/optimized/optimized_ops.h"
 #include "tensorflow/contrib/lite/kernels/internal/quantization_util.h"
 #include "tensorflow/contrib/lite/kernels/internal/reference/reference_ops.h"
@@ -490,6 +492,7 @@ void EvalFloat(TfLiteContext* context, TfLiteNode* node,
           GetTensorData<float>(im2col), GetTensorDims(im2col));
       break;
     }
+#ifndef TFLITE_MCU
     case kMultithreadOptimized: {
       const float* filter_data;
       if (data->need_hwcn_weights) {
@@ -519,6 +522,7 @@ void EvalFloat(TfLiteContext* context, TfLiteNode* node,
                       GetTensorData<float>(im2col), GetTensorDims(im2col));
       break;
     }
+#endif
   }
 }
 
@@ -642,6 +646,7 @@ TfLiteRegistration* Register_CONVOLUTION_GENERIC_OPT() {
   return &r;
 }
 
+#ifndef TFLITE_MCU
 TfLiteRegistration* Register_CONVOLUTION_MULTITHREADED_OPT() {
   static TfLiteRegistration r = {conv::Init, conv::Free, conv::Prepare,
                                  conv::Eval<conv::kMultithreadOptimized>};
@@ -653,10 +658,13 @@ TfLiteRegistration* Register_CONVOLUTION_CBLAS_OPT() {
                                  conv::Eval<conv::kCblasOptimized>};
   return &r;
 }
+#endif
 
 TfLiteRegistration* Register_CONV_2D() {
 #ifdef TFLITE_USE_APPLE_ACCELERATE_FOR_CONV
   return Register_CONVOLUTION_CBLAS_OPT();
+#elif defined(TFLITE_MCU)
+  return Register_CONVOLUTION_GENERIC_OPT();
 #else
   return Register_CONVOLUTION_MULTITHREADED_OPT();
 #endif

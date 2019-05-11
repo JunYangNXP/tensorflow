@@ -232,9 +232,9 @@ class RuntimeShape {
   // vector.
   inline int FlatSize() const {
     int buffer_size = 1;
-    const int* dims_data = DimsData();
+    const int32* dims_data = DimsData();
     for (int i = 0; i < size_; i++) {
-      const int dim = dims_data[i];
+      const int32 dim = dims_data[i];
       TFLITE_DCHECK_GE(dim, 1);
       buffer_size *= dim;
     }
@@ -344,7 +344,7 @@ inline int Offset(const RuntimeShape& shape, int i0, int i1, int i2, int i3) {
   TFLITE_DCHECK(i1 >= 0 && i1 < shape.Dims(1));
   TFLITE_DCHECK(i2 >= 0 && i2 < shape.Dims(2));
   TFLITE_DCHECK(i3 >= 0 && i3 < shape.Dims(3));
-  const int* dims_data = shape.DimsData();
+  const int32* dims_data = shape.DimsData();
   return ((i0 * dims_data[1] + i1) * dims_data[2] + i2) * dims_data[3] + i3;
 }
 

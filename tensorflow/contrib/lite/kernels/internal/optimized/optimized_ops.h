@@ -17,7 +17,11 @@ limitations under the License.
 
 #include <assert.h>
 #include <stdint.h>
+#if !defined(__ICCARM__) && !defined(__ARMCC_VERSION)
 #include <sys/types.h>
+#elif defined(__ICCARM__)
+#include <intrinsics.h>
+#endif
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -1501,6 +1505,7 @@ inline void ShuffledFullyConnectedWorkerImpl(
 #endif
 }
 
+#ifndef TFLITE_MCU
 // Wraps ShuffledFullyConnectedWorkerImpl into a Task class
 // to allow using gemmlowp's threadpool.
 struct ShuffledFullyConnectedWorkerTask : gemmlowp::Task {
@@ -1540,6 +1545,7 @@ struct ShuffledFullyConnectedWorkerTask : gemmlowp::Task {
   int output_shift_;
   int16* output_data_;
 };
+#endif
 
 inline void ShuffledFullyConnected(
     const uint8* input_data, const Dims<4>& input_dims,
@@ -1627,8 +1633,12 @@ inline void ShuffledFullyConnected(
   }
 
   static constexpr int kKernelRows = 4;
+#ifndef TFLITE_MCU
   const int thread_count = gemmlowp::HowManyThreads<kKernelRows>(
       gemm_context->max_num_threads(), output_depth, batches, accum_depth);
+#else
+  const int thread_count = 1;
+#endif
   if (thread_count == 1) {
     // Single-thread case: do the computation on the current thread, don't
     // use a threadpool
@@ -1639,6 +1649,7 @@ inline void ShuffledFullyConnected(
     return;
   }
 
+#ifndef TFLITE_MCU
   // Multi-threaded case: use the gemmlowp context's threadpool.
   TFLITE_DCHECK_GT(thread_count, 1);
   std::vector<gemmlowp::Task*> tasks(thread_count);
@@ -1656,6 +1667,7 @@ inline void ShuffledFullyConnected(
   }
   TFLITE_DCHECK_EQ(row_start, output_depth);
   gemm_context->workers_pool()->Execute(tasks);
+#endif
 }
 
 template <typename T>
@@ -2491,7 +2503,7 @@ inline void L2Normalization(const tflite::L2NormalizationParams& op_params,
       int32 rescaled_diff = MultiplyByQuantizedMultiplierSmallerThanOneExp(
           128 * diff, inv_l2norm_multiplier, inv_l2norm_shift);
       int32 unclamped_output_val = 128 + rescaled_diff;
-      int32 output_val = std::min(255, std::max(0, unclamped_output_val));
+      int32 output_val = std::min(static_cast<int32>(255), std::max(static_cast<int32>(0), unclamped_output_val));
       *output_data = static_cast<uint8>(output_val);
       ++input_data;
       ++output_data;
@@ -4318,7 +4330,7 @@ inline void Softmax(const uint8* input_data, const RuntimeShape& input_shape,
           int32 unsat_output = gemmlowp::RoundingDivideByPOT(
               (shifted_scale * exp_in_0).raw(), num_bits_over_unit + 31 - 8);
 
-          output_data_ptr[c] = std::max(std::min(unsat_output, 255), 0);
+          output_data_ptr[c] = std::max(std::min(static_cast<int>(unsat_output), 255), 0);
 
         } else {
           output_data_ptr[c] = 0;
@@ -4413,7 +4425,7 @@ log_x_for_x_greater_than_or_equal_to_1_impl(
   //                   InputIntegerBits - z_b_headroom - 0.25);
   const FixedPointAccum z_a_pow_2_adj = SaturatingAddNonGemmlowp(
       FixedPointAccum::FromRaw(SaturatingRoundingMultiplyByPOTParam(
-          InputIntegerBits - z_a_headroom_plus_1, 31 - kAccumIntegerBits)),
+          static_cast<int32>(InputIntegerBits - z_a_headroom_plus_1), 31 - kAccumIntegerBits)),
       shifted_quarter);
 
   // z_b is treated like z_a, but premultiplying by sqrt(0.5).
@@ -4423,7 +4435,7 @@ log_x_for_x_greater_than_or_equal_to_1_impl(
       SaturatingRoundingMultiplyByPOTParam(z_a.raw(), z_b_headroom);
   const FixedPointAccum z_b_pow_2_adj = SaturatingSub(
       FixedPointAccum::FromRaw(SaturatingRoundingMultiplyByPOTParam(
-          InputIntegerBits - z_b_headroom, 31 - kAccumIntegerBits)),
+          static_cast<int32>(InputIntegerBits - z_b_headroom), 31 - kAccumIntegerBits)),
       shifted_quarter);
 
   const FixedPoint0 r = FixedPoint0::FromRaw(std::min(r_a_raw, r_b_raw));
@@ -4538,7 +4550,7 @@ inline void LogSoftmax(const uint8* input_data, const RuntimeShape& input_shape,
     const int rescaled_diff_min =
         fixed_log_sum_of_exps + std::numeric_limits<int32>::lowest();
     const int adjusted_diff_min =
-        std::max(diff_min - 1,  // Note use of > below instead of >= above.
+        std::max(static_cast<int32>(diff_min - 1),  // Note use of > below instead of >= above.
                  MultiplyByQuantizedMultiplierSmallerThanOneExp(
                      rescaled_diff_min, reverse_scaling_divisor,
                      kReverseShift * reverse_scaling_right_shift));
@@ -4556,7 +4568,7 @@ inline void LogSoftmax(const uint8* input_data, const RuntimeShape& input_shape,
             255;
 
         block_output_data[c] = static_cast<uint8>(
-            std::max(std::min(unsat_output, static_cast<int32>(255)), 0));
+            std::max(std::min(unsat_output, static_cast<int32>(255)), static_cast<int32>(0)));
       } else {
         // Set output to smallest value.
         block_output_data[c] = 0;
@@ -5322,8 +5334,8 @@ inline void ResizeBilinear2x2(int32 batches, int32 input_height,
   for (int b = 0; b < batches; b++) {
     for (int y0 = 0, y = 0; y <= output_height - 2; y += 2, y0++) {
       for (int x0 = 0, x = 0; x <= output_width - 2; x += 2, x0++) {
-        int32 x1 = std::min(x0 + 1, input_width - 1);
-        int32 y1 = std::min(y0 + 1, input_height - 1);
+        int32 x1 = std::min(static_cast<int32>(x0 + 1), input_width - 1);
+        int32 y1 = std::min(static_cast<int32>(y0 + 1), input_height - 1);
         ResizeBilinearKernel2x2(x0, x1, y0, y1, x, y, depth, b, input_shape,
                                 input_data, output_shape, output_data);
       }
