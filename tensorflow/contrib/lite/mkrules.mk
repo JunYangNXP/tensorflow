@@ -22,8 +22,8 @@ vpath %.cc . $(TFLITE_BASE)/tensorflow/contrib/lite/
 vpath %.cc . $(TFLITE_BASE)/tensorflow/contrib/lite/kernels/
 vpath %.cc . $(TFLITE_BASE)/tensorflow/contrib/lite/kernels/internal/
 vpath %.cc . $(TFLITE_BASE)/tensorflow/contrib/lite/kernels/internal/reference/
-vpath %.cc . $(TFLITE_THIRD_PARTY_BASE)/farmhash/src/
-vpath %.c . $(TFLITE_THIRD_PARTY_BASE)/fft2d/
+vpath %.cc . $(TFLITE_MCU_THIRD_PARTY_BASE)/farmhash/src/
+vpath %.c . $(TFLITE_MCU_THIRD_PARTY_BASE)/fft2d/
 $(TFLITE_BUILD)/%.o : %.cc
 	$(ECHO) "CPP $< to $@"
 	$(Q)$(CROSS_CPP) $(TF_CPPFLAGS) -c -MD -o $@ $<

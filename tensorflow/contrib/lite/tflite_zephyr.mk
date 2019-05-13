@@ -1,15 +1,15 @@
 # where py object files go (they have a name prefix to prevent filename clashes)
 TFLITE_BUILD = $(BUILD)/tflite
 
-TFLITE_FARMHASH_SRC =      $(wildcard $(TFLITE_THIRD_PARTY_BASE)/farmhash/src/*.cc)
+TFLITE_FARMHASH_SRC =      $(wildcard $(TFLITE_MCU_THIRD_PARTY_BASE)/farmhash/src/*.cc)
 
-TFLITE_FARMHASH_TEST_SRC =       $(wildcard $(TFLITE_THIRD_PARTY_BASE)/farmhash/src/*test*.cc)
+TFLITE_FARMHASH_TEST_SRC =       $(wildcard $(TFLITE_MCU_THIRD_PARTY_BASE)/farmhash/src/*test*.cc)
 
 TFLITE_FARMHASH_SRC := $(filter-out $(TFLITE_FARMHASH_TEST_SRC),$(TFLITE_FARMHASH_SRC))
 
 TFLITE_FARMHASH_BASE_SRC = $(notdir $(TFLITE_FARMHASH_SRC))
 
-TFLITE_FFT2D_SRC =      $(wildcard $(TFLITE_THIRD_PARTY_BASE)/fft2d/*.c)
+TFLITE_FFT2D_SRC =      $(wildcard $(TFLITE_MCU_THIRD_PARTY_BASE)/fft2d/*.c)
 
 TFLITE_FFT2D_BASE_SRC = $(notdir $(TFLITE_FFT2D_SRC))
 
